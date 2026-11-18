@@ -38,7 +38,8 @@ const link: {
   latest: Map<string, Notice>
   seen: Map<string, PrState> | null
   fails: { github: number; golem: number }
-} = { github: null, login: null, golem: null, cursor: null, latest: new Map(), seen: null, fails: { github: 0, golem: 0 } }
+  busy: Promise<void> | null
+} = { github: null, login: null, golem: null, cursor: null, latest: new Map(), seen: null, fails: { github: 0, golem: 0 }, busy: null }
 
 const short = (repo: string) => repo.split('/')[1] ?? repo
 const name = (pr: Pr) => `${short(pr.repo)} #${pr.number}`
@@ -69,7 +70,7 @@ async function graphql($: EngineInterface, token: string, query: string): Promis
  * bot opened in the person's repositories (a release pull request).
  */
 async function pullRequests($: EngineInterface, days: number): Promise<Pr[]> {
-  link.github ??= await secret($, ['gh', 'auth', 'token'])
+  link.github ??= await secret($, ['gh', 'auth', 'token', '--hostname', 'github.com'])
   if (link.github === null) throw new Error('gh is not signed in')
   link.login ??= (await graphql($, link.github, '{ viewer { login } }')).viewer.login as string
   const since = new Date(Date.now() - days * DAY_MS).toISOString().slice(0, 10)
@@ -93,15 +94,17 @@ async function notices($: EngineInterface, conf: Conf): Promise<Notice[] | null>
   if (link.golem === null) return null
   const got: Notice[] = []
   let after = link.cursor ?? 0
-  for (let page = 0; page < 20; page++) {
+  // Every page, so the first pull ends at the newest notice and replays none of them later.
+  for (;;) {
     const res = await $.http.fetch(`${conf.golem.replace(/\/$/, '')}/notices?after=${after}&limit=${PAGE}`, {
       headers: { authorization: `Bearer ${link.golem}` },
     })
     if (!res.ok) throw new Error('golem refused the pull')
     const body = JSON.parse(res.text) as { notices: Notice[]; cursor: number }
     got.push(...body.notices)
+    // A full page whose cursor did not move would loop for ever.
+    if (body.notices.length < PAGE || body.cursor <= after) break
     after = body.cursor
-    if (body.notices.length < PAGE) break
   }
   return got
 }
@@ -118,6 +121,13 @@ function deploysOf(days: number): Deploy[] {
   return out
 }
 
+/** One pull at a time: the timer and /ship share the pull that is under way, so an older answer never lands on a newer one. */
+function pull($: EngineInterface, conf: Conf): Promise<void> {
+  return (link.busy ??= tick($, conf).finally(() => {
+    link.busy = null
+  }))
+}
+
 async function tick($: EngineInterface, conf: Conf) {
   const [prs, got] = await Promise.all([
     pullRequests($, conf.days).catch(() => null),
@@ -127,22 +137,21 @@ async function tick($: EngineInterface, conf: Conf) {
   link.fails.golem = got === undefined ? link.fails.golem + 1 : 0
 
   if (prs !== null) {
-    const seen = new Map(prs.map(pr => [pr.url, pr.state] as const))
     // The first pull only learns the states, so a new session does not replay old results.
-    if (link.seen !== null) {
-      for (const pr of prs) {
-        const was = link.seen.get(pr.url)
-        if (pr.state === was || pr.state === 'running') continue
-        if (pr.state === 'failed') $.ui.toast(`ship failed: ${name(pr)}`)
-        else if (was === 'running') $.ui.toast(`ship passed: ${name(pr)}`)
-      }
+    // A pull request seen for the first time is learned too: an old one comes back into the search when someone comments.
+    const isFirst = link.seen === null
+    const seen = (link.seen ??= new Map())
+    for (const pr of prs) {
+      const was = seen.get(pr.url)
+      seen.set(pr.url, pr.state)
+      if (isFirst || was === undefined || was === pr.state || pr.state === 'running') continue
+      $.ui.toast(`ship ${pr.state === 'failed' ? 'failed' : 'passed'}: ${name(pr)}`)
     }
-    link.seen = seen
   }
 
   if (got) {
     for (const n of got) {
-      if (!n.kind.startsWith('deploy.')) continue
+      if (!n.kind.startsWith('deploy.') || n.id <= (link.cursor ?? 0)) continue
       link.latest.set(`${n.repo} ${n.target ?? ''}`, n)
       if (link.cursor === null) continue
       if (n.kind === 'deploy.live') $.ui.toast(`ship live: ${short(n.repo)}`)
@@ -192,20 +201,23 @@ export const register: Register = (on, options) => {
 
   on('session.start', async ($, e, next) => {
     await $.command.register({ name: 'ship', description: 'List the pull requests and deploys under way' })
-    void tick($, conf)
-    $.clock.every(seconds * 1000, () => tick($, conf))
+    void pull($, conf)
+    $.clock.every(seconds * 1000, () => pull($, conf))
     return next(e)
   })
 
   on('command.run', { command: 'ship' }, async $ => {
-    await tick($, conf)
+    await pull($, conf)
     const f = await read($, feed)
     const lines = [
       ...f.down.map(source => `${source} is unreachable.`),
-      ...ORDER.flatMap(state => f.prs.filter(pr => pr.state === state)).map(pr => `${pr.state.toUpperCase()}  ${name(pr)}  ${pr.title}  ${pr.url}`),
-      ...f.deploys.map(d => `${d.state.toUpperCase()}  ${short(d.repo)}  ${d.target}${d.url ? `  ${d.url}` : ''}`),
+      ...ORDER.flatMap(state => [
+        ...f.prs.filter(pr => pr.state === state).map(pr => `${state.toUpperCase()}  ${name(pr)}  ${pr.title}  ${pr.url}`),
+        ...f.deploys.filter(d => d.state === (state === 'running' ? 'deploying' : state)).map(d => `${d.state.toUpperCase()}  ${short(d.repo)}  ${d.target}${d.url ? `  ${d.url}` : ''}`),
+      ]),
     ]
-    return { text: lines.length === 0 ? 'Nothing under way.' : lines.join('\n') }
+    // For the person only: a pull request title is text a stranger can write, so it stays out of the model's context.
+    return { text: lines.length === 0 ? 'Nothing under way.' : lines.join('\n'), isTextDisplayOnly: true }
   })
 
   on('ui.render', { component: 'AbovePrompt' }, async ($, e, next) => {

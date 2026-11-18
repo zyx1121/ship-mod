@@ -133,8 +133,30 @@ test('/ship lists what failed first, each with its link', async ($, on) => {
     [
       'FAILED  app #3  change 3  https://github.com/me/app/pull/3',
       'RUNNING  app #2  change 2  https://github.com/me/app/pull/2',
-      'READY  app #1  change 1  https://github.com/me/app/pull/1',
       'DEPLOYING  site  land/site',
+      'READY  app #1  change 1  https://github.com/me/app/pull/1',
     ].join('\n'),
   )
+})
+
+test('a pull request that comes back into the search is learned, not announced', async ($, on) => {
+  const toasts: string[] = []
+  const clock = engine(on, { rollups: [['SUCCESS'], ['SUCCESS', 'FAILURE'], ['SUCCESS', 'SUCCESS']], toasts })
+  await $.session.start(START)
+  await clock.settle()
+  await clock.advance(30_000)
+  expect(toasts).toEqual([])
+
+  await clock.advance(30_000)
+  expect(toasts).toEqual(['ship passed: app #2'])
+})
+
+test('/ship during the first pull shares it and replays no old deploy', async ($, on) => {
+  const toasts: string[] = []
+  const clock = engine(on, { rollups: [[]], notices: [[notice(1, 'deploy.started'), notice(2, 'deploy.live')]], toasts })
+  await $.session.start(START)
+  await $.command.run({ command: 'ship', args: '', origin: { kind: 'composer' }, presentation: { isFullscreen: false, columns: 100 } })
+  await clock.settle()
+  await clock.advance(30_000)
+  expect(toasts).toEqual([])
 })
