@@ -122,3 +122,41 @@ test('a source that fails 3 pulls in a row shows as unreachable', async ($, on) 
   expect((await ui.find({ type: 'Text', text: /unreachable/ }))?.text).toBe('github unreachable   ')
   await ui.unmount()
 })
+
+test('/ship lists what failed first, each with its link', async ($, on) => {
+  const clock = engine(on, { rollups: [['SUCCESS', 'PENDING', 'FAILURE']], notices: [[notice(1, 'deploy.started')]] })
+  await $.session.start(START)
+  await clock.settle()
+
+  const ran = await $.command.run({ command: 'ship', args: '', origin: { kind: 'composer' }, presentation: { isFullscreen: false, columns: 100 } })
+  expect(ran.text).toBe(
+    [
+      'FAILED  app #3  change 3  https://github.com/me/app/pull/3',
+      'RUNNING  app #2  change 2  https://github.com/me/app/pull/2',
+      'DEPLOYING  site  land/site',
+      'READY  app #1  change 1  https://github.com/me/app/pull/1',
+    ].join('\n'),
+  )
+})
+
+test('a pull request that comes back into the search is learned, not announced', async ($, on) => {
+  const toasts: string[] = []
+  const clock = engine(on, { rollups: [['SUCCESS'], ['SUCCESS', 'FAILURE'], ['SUCCESS', 'SUCCESS']], toasts })
+  await $.session.start(START)
+  await clock.settle()
+  await clock.advance(30_000)
+  expect(toasts).toEqual([])
+
+  await clock.advance(30_000)
+  expect(toasts).toEqual(['ship passed: app #2'])
+})
+
+test('/ship during the first pull shares it and replays no old deploy', async ($, on) => {
+  const toasts: string[] = []
+  const clock = engine(on, { rollups: [[]], notices: [[notice(1, 'deploy.started'), notice(2, 'deploy.live')]], toasts })
+  await $.session.start(START)
+  await $.command.run({ command: 'ship', args: '', origin: { kind: 'composer' }, presentation: { isFullscreen: false, columns: 100 } })
+  await clock.settle()
+  await clock.advance(30_000)
+  expect(toasts).toEqual([])
+})
