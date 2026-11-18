@@ -70,6 +70,7 @@ Start a new session. The mod reads the GitHub token from `gh auth token`, so sig
 ## Limits
 
 - A pull request without checks is left out.
+- A pull request that a bot opened in an organization's repository is left out: the search covers your own pull requests and the repositories under your account.
 - Without a golem token on the machine, the panel shows pull requests only.
 - Each open session pulls and toasts on its own. With 5 sessions, you see 5 toasts.
 

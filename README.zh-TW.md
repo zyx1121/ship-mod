@@ -72,6 +72,7 @@ export CLAUDE_CODE_ENABLE_FUNCTION_HOOKS=1
 ## 限制
 
 - 沒有 check 的 PR 不顯示。
+- bot 在組織 repo 開的 PR 不顯示：搜尋範圍是你自己開的 PR，加上你帳號底下的 repo。
 - 機器上沒有 golem token 時，面板只顯示 PR。
 - 每個開著的 session 各自拉取與提示。開 5 個 session 會看到 5 次提示。
 

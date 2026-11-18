@@ -24,6 +24,9 @@ type Conf = { golem: string; service: string; days: number }
 // GitHub's rollup of every check on the last commit; a pull request without checks has none and is left out.
 const STATE: Record<string, PrState> = { PENDING: 'running', EXPECTED: 'running', FAILURE: 'failed', ERROR: 'failed', SUCCESS: 'ready' }
 
+// What needs the person first: the order of the panel and of /ship.
+const ORDER: PrState[] = ['failed', 'running', 'ready']
+
 const FIELDS = 'nodes { ... on PullRequest { number title url repository { nameWithOwner } commits(last: 1) { nodes { commit { statusCheckRollup { state } } } } } }'
 
 // Tokens, cursors and what the last pull saw live for the session; a reload starts them over.
@@ -199,7 +202,7 @@ export const register: Register = (on, options) => {
     const f = await read($, feed)
     const lines = [
       ...f.down.map(source => `${source} is unreachable.`),
-      ...f.prs.map(pr => `${pr.state.toUpperCase()}  ${name(pr)}  ${pr.title}  ${pr.url}`),
+      ...ORDER.flatMap(state => f.prs.filter(pr => pr.state === state)).map(pr => `${pr.state.toUpperCase()}  ${name(pr)}  ${pr.title}  ${pr.url}`),
       ...f.deploys.map(d => `${d.state.toUpperCase()}  ${short(d.repo)}  ${d.target}${d.url ? `  ${d.url}` : ''}`),
     ]
     return { text: lines.length === 0 ? 'Nothing under way.' : lines.join('\n') }

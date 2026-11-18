@@ -122,3 +122,19 @@ test('a source that fails 3 pulls in a row shows as unreachable', async ($, on) 
   expect((await ui.find({ type: 'Text', text: /unreachable/ }))?.text).toBe('github unreachable   ')
   await ui.unmount()
 })
+
+test('/ship lists what failed first, each with its link', async ($, on) => {
+  const clock = engine(on, { rollups: [['SUCCESS', 'PENDING', 'FAILURE']], notices: [[notice(1, 'deploy.started')]] })
+  await $.session.start(START)
+  await clock.settle()
+
+  const ran = await $.command.run({ command: 'ship', args: '', origin: { kind: 'composer' }, presentation: { isFullscreen: false, columns: 100 } })
+  expect(ran.text).toBe(
+    [
+      'FAILED  app #3  change 3  https://github.com/me/app/pull/3',
+      'RUNNING  app #2  change 2  https://github.com/me/app/pull/2',
+      'READY  app #1  change 1  https://github.com/me/app/pull/1',
+      'DEPLOYING  site  land/site',
+    ].join('\n'),
+  )
+})
