@@ -9,6 +9,8 @@ import type { Seg } from './panel'
 const FAILS_SHOWN = 3
 // A deploy that started this long ago and never reported back is no longer under way.
 const DEPLOY_MS = 15 * 60 * 1000
+// A pull that has not answered by then counts as failed, so one hung request cannot stall every later pull.
+const PULL_MS = 20 * 1000
 // The names one group shows before it folds the rest into "+N".
 const NAMES = 4
 const PAGE = 500
@@ -121,6 +123,21 @@ function deploysOf(days: number): Deploy[] {
   return out
 }
 
+/** The answer of `work`, or a rejection when it takes longer than PULL_MS. */
+async function within<T>($: EngineInterface, work: Promise<T>): Promise<T> {
+  const stop = new AbortController()
+  const late = $.clock.sleep(PULL_MS, { signal: stop.signal }).then(() => {
+    throw new Error('the pull timed out')
+  })
+  // Aborting the sleep rejects it once the work is done; nobody waits on that.
+  late.catch(() => {})
+  try {
+    return await Promise.race([work, late])
+  } finally {
+    stop.abort()
+  }
+}
+
 /** One pull at a time: the timer and /ship share the pull that is under way, so an older answer never lands on a newer one. */
 function pull($: EngineInterface, conf: Conf): Promise<void> {
   return (link.busy ??= tick($, conf).finally(() => {
@@ -130,8 +147,8 @@ function pull($: EngineInterface, conf: Conf): Promise<void> {
 
 async function tick($: EngineInterface, conf: Conf) {
   const [prs, got] = await Promise.all([
-    pullRequests($, conf.days).catch(() => null),
-    notices($, conf).catch(() => undefined),
+    within($, pullRequests($, conf.days)).catch(() => null),
+    within($, notices($, conf)).catch(() => undefined),
   ])
   link.fails.github = prs === null ? link.fails.github + 1 : 0
   link.fails.golem = got === undefined ? link.fails.golem + 1 : 0

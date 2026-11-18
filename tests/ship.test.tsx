@@ -7,7 +7,7 @@ const BAND = {
 } as const
 
 type On = Parameters<typeof mock.clock>[0]
-type World = { rollups: (string | null)[][]; notices?: unknown[][]; isGithubUp?: boolean; toasts?: string[] }
+type World = { rollups: (string | null)[][]; notices?: unknown[][]; isGithubUp?: boolean; isGithubHung?: boolean; toasts?: string[] }
 
 const pr = (number: number, state: string | null) => ({
   number,
@@ -34,6 +34,7 @@ function engine(on: On, world: World) {
     }
     expect(e.url).toBe('https://api.github.com/graphql')
     expect(e.init?.headers?.authorization).toBe('Bearer token')
+    if (world.isGithubHung) return new Promise<never>(() => {})
     if (world.isGithubUp === false) return answer({}, false)
     if (String(e.init?.body).includes('viewer')) return answer({ data: { viewer: { login: 'me' } } })
     const set = world.rollups[Math.min(searches++, world.rollups.length - 1)] ?? []
@@ -105,6 +106,18 @@ test('a deploy under way shows, and its end toasts', async ($, on) => {
   const after = await $.ui.mount({ ...BAND, surface: 'terminal' })
   expect(await after.find({ type: 'Text', text: /SHIP/ })).toBeUndefined()
   await after.unmount()
+})
+
+test('a pull that never answers counts as failed and shows unreachable', async ($, on) => {
+  const clock = engine(on, { rollups: [[]], isGithubHung: true })
+  await $.session.start(START)
+  await clock.advance(30_000)
+  await clock.advance(30_000)
+  await clock.advance(30_000)
+
+  const ui = await $.ui.mount({ ...BAND, surface: 'terminal' })
+  expect((await ui.find({ type: 'Text', text: /unreachable/ }))?.text).toBe('github unreachable   ')
+  await ui.unmount()
 })
 
 test('a source that fails 3 pulls in a row shows as unreachable', async ($, on) => {
