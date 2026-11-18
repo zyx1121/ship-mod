@@ -1,0 +1,14 @@
+{
+  "name": "ship-mod",
+  "owner": { "name": "zyx1121", "url": "https://github.com/zyx1121" },
+  "description": "Marketplace for the ship-mod plugin: pull requests and deploys in Claude Code.",
+  "plugins": [
+    {
+      "name": "ship-mod",
+      "source": "./",
+      "description": "Pull requests and deploys in Claude Code: a line above the prompt while CI runs, a check fails or a deploy is under way, a toast when one ends, and /ship.",
+      "category": "monitoring",
+      "tags": ["github", "ci", "deploy", "band", "function-hooks"]
+    }
+  ]
+}

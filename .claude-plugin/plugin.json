@@ -1,0 +1,40 @@
+{
+  "name": "ship-mod",
+  "version": "0.1.0",
+  "description": "Pull requests and deploys in Claude Code: a line above the prompt while CI runs, a check fails or a deploy is under way, a toast when one ends, and /ship for the list.",
+  "author": {
+    "name": "zyx1121",
+    "url": "https://github.com/zyx1121"
+  },
+  "types": "./types/index.d.ts",
+  "userConfig": {
+    "days": {
+      "type": "number",
+      "title": "Days",
+      "description": "Pull requests and failed deploys older than this many days are left out. 2 by default.",
+      "required": false,
+      "default": 2
+    },
+    "pollSeconds": {
+      "type": "number",
+      "title": "Poll interval",
+      "description": "Seconds between pulls. 30 by default; 10 at the least.",
+      "required": false,
+      "default": 30
+    },
+    "golemUrl": {
+      "type": "string",
+      "title": "golem URL",
+      "description": "Where golem runs. The mod pulls deploy notices from GET /notices.",
+      "required": false,
+      "default": "https://golem.zyx.tw"
+    },
+    "keychainService": {
+      "type": "string",
+      "title": "Keychain service",
+      "description": "The macOS keychain item that holds the golem token. The token never leaves memory.",
+      "required": false,
+      "default": "kilo/golem-mcp"
+    }
+  }
+}
