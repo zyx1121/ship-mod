@@ -227,8 +227,28 @@ export const register: Register = (on, options) => {
     const { Box, Text } = $.ui.resolve(e)
     const kit = { Box, Text }
     const tone = f.down.length > 0 ? 'error' : 'normal'
-    // The whole band width: the engine gives each mod's panels a row of their own.
+    // The whole band width, and free to shrink: alone the panel fills its row, beside GOLEM the two shrink to a half each.
     const panel = panelOf(kit, { title: 'SHIP', tone, width: e.props.bodyColumns }, lineOf(kit, segs))
     return rowOf(kit, [panel], await next(e))
+  })
+
+  // The engine stacks one row for each mod. When golem-mod drew one too, the two share a row, half each.
+  // A Box that holds another mod's row takes no width, so each panel asks for the whole band and the row shrinks them alike.
+  on('ui.render', { component: 'AbovePromptList' }, async ($, e, next) => {
+    const rows = e.props.rows
+    const golem = rows.find(row => row.plugin === 'golem-mod')
+    const ship = rows.find(row => row.plugin === 'ship-mod')
+    if (!golem || !ship) return next(e)
+    const { Box } = $.ui.resolve(e)
+    const only = (kept: typeof rows) => next({ ...e, props: { ...e.props, rows: kept } })
+    return (
+      <Box flexDirection="column">
+        {await only(rows.filter(row => row !== golem && row !== ship))}
+        <Box flexDirection="row">
+          <Box flexShrink={1}>{await only([golem])}</Box>
+          <Box flexShrink={1}>{await only([ship])}</Box>
+        </Box>
+      </Box>
+    )
   })
 }

@@ -40,7 +40,7 @@ export type PanelSpec = {
   title: string
   subtitle?: string
   tone?: Tone
-  /** Fixed columns, frame included; without it the panel grows into the free space. */
+  /** Columns, frame included, that the panel gives up when its row is short; without it the panel grows into the free space. */
   width?: number
 }
 
@@ -57,7 +57,7 @@ export function panelOf(kit: PanelKit, spec: PanelSpec, body: RenderChildren): R
   const tone = spec.tone ?? 'normal'
   // A value worth a look colors only that value; the border changes for a failure alone.
   const border = tone === 'error' ? COLOR.error : COLOR.line
-  const size = spec.width === undefined ? { flexGrow: 1, flexShrink: 1 } : { width: spec.width, flexShrink: 0 }
+  const size = spec.width === undefined ? { flexGrow: 1, flexShrink: 1 } : { width: spec.width, flexShrink: 1 }
 
   return (
     <Box flexDirection="column" {...size}>
