@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.3.0](https://github.com/zyx1121/ship-mod/compare/v0.2.0...v0.3.0) (2026-11-19)
+
+
+### Features
+
+* fade a failed pull request out after 24 hours ([#10](https://github.com/zyx1121/ship-mod/issues/10)) ([e1847d6](https://github.com/zyx1121/ship-mod/commit/e1847d6825dc81c46eaf28810a0d7058753fe1fb))
+
 ## [0.2.0](https://github.com/zyx1121/ship-mod/compare/v0.1.0...v0.2.0) (2026-11-18)
 
 
