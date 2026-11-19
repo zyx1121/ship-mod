@@ -21,7 +21,7 @@ const feed = atom({ plugin: 'ship-mod', key: 'feed' } as const, { prs: [], deplo
 })
 
 type Notice = { id: number; ts: number; kind: string; repo: string; target: string | null; url: string | null }
-type Conf = { golem: string; service: string; days: number }
+type Conf = { golem: string; service: string; days: number; failedHours: number }
 
 // GitHub's rollup of every check on the last commit; a pull request without checks has none and is left out.
 const STATE: Record<string, PrState> = { PENDING: 'running', EXPECTED: 'running', FAILURE: 'failed', ERROR: 'failed', SUCCESS: 'ready' }
@@ -29,7 +29,7 @@ const STATE: Record<string, PrState> = { PENDING: 'running', EXPECTED: 'running'
 // What needs the person first: the order of the panel and of /ship.
 const ORDER: PrState[] = ['failed', 'running', 'ready']
 
-const FIELDS = 'nodes { ... on PullRequest { number title url repository { nameWithOwner } commits(last: 1) { nodes { commit { statusCheckRollup { state } } } } } }'
+const FIELDS = 'nodes { ... on PullRequest { number title url repository { nameWithOwner } commits(last: 1) { nodes { commit { committedDate statusCheckRollup { state } } } } } }'
 
 // Tokens, cursors and what the last pull saw live for the session; a reload starts them over.
 const link: {
@@ -71,7 +71,7 @@ async function graphql($: EngineInterface, token: string, query: string): Promis
  * The open pull requests that have checks: the person's own, and the ones a
  * bot opened in the person's repositories (a release pull request).
  */
-async function pullRequests($: EngineInterface, days: number): Promise<Pr[]> {
+async function pullRequests($: EngineInterface, days: number, failedMs: number): Promise<Pr[]> {
   link.github ??= await secret($, ['gh', 'auth', 'token', '--hostname', 'github.com'])
   if (link.github === null) throw new Error('gh is not signed in')
   link.login ??= (await graphql($, link.github, '{ viewer { login } }')).viewer.login as string
@@ -84,7 +84,11 @@ async function pullRequests($: EngineInterface, days: number): Promise<Pr[]> {
   )
   const prs: Pr[] = []
   for (const node of [...data.mine.nodes, ...data.bots.nodes]) {
-    const state = STATE[node.commits?.nodes?.[0]?.commit?.statusCheckRollup?.state ?? '']
+    const commit = node.commits?.nodes?.[0]?.commit
+    const state = STATE[commit?.statusCheckRollup?.state ?? '']
+    // A failure older than failedMs was seen and left alone: it fades out instead of holding the panel open.
+    const age = commit?.committedDate ? Date.now() - Date.parse(commit.committedDate) : 0
+    if (state === 'failed' && age > failedMs) continue
     if (state) prs.push({ repo: node.repository.nameWithOwner, number: node.number, title: node.title, url: node.url, state })
   }
   return prs
@@ -147,7 +151,7 @@ function pull($: EngineInterface, conf: Conf): Promise<void> {
 
 async function tick($: EngineInterface, conf: Conf) {
   const [prs, got] = await Promise.all([
-    within($, pullRequests($, conf.days)).catch(() => null),
+    within($, pullRequests($, conf.days, conf.failedHours * 60 * 60 * 1000)).catch(() => null),
     within($, notices($, conf)).catch(() => undefined),
   ])
   link.fails.github = prs === null ? link.fails.github + 1 : 0
@@ -213,6 +217,7 @@ export const register: Register = (on, options) => {
     golem: String(options.golemUrl || 'https://golem.zyx.tw'),
     service: String(options.keychainService || 'kilo/golem-mcp'),
     days: Math.max(1, Number(options.days) || 2),
+    failedHours: Math.max(1, Number(options.failedHours) || 24),
   }
   const seconds = Math.max(10, Number(options.pollSeconds) || 30)
 

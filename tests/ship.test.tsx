@@ -9,13 +9,28 @@ const BAND = {
 type On = Parameters<typeof mock.clock>[0]
 type World = { rollups: (string | null)[][]; notices?: unknown[][]; isGithubUp?: boolean; isGithubHung?: boolean; toasts?: string[] }
 
-const pr = (number: number, state: string | null) => ({
-  number,
-  title: `change ${number}`,
-  url: `https://github.com/me/app/pull/${number}`,
-  repository: { nameWithOwner: 'me/app' },
-  commits: { nodes: [{ commit: { statusCheckRollup: state === null ? null : { state } } }] },
-})
+const HOUR_MS = 60 * 60 * 1000
+
+// A state may carry an age: 'FAILURE@30' is a failure whose commit is 30 hours old.
+const pr = (number: number, spec: string | null) => {
+  const [state, hours] = (spec ?? '').split('@')
+  return {
+    number,
+    title: `change ${number}`,
+    url: `https://github.com/me/app/pull/${number}`,
+    repository: { nameWithOwner: 'me/app' },
+    commits: {
+      nodes: [
+        {
+          commit: {
+            committedDate: new Date(Date.now() - Number(hours || 0) * HOUR_MS).toISOString(),
+            statusCheckRollup: spec === null ? null : { state },
+          },
+        },
+      ],
+    },
+  }
+}
 
 const notice = (id: number, kind: string) => ({ id, ts: Date.now(), kind, repo: 'me/site', target: 'land/site', url: null })
 
@@ -63,6 +78,16 @@ test('every rollup state lands in its group, and a pull request without checks i
   expect((await ui.find({ type: 'Text', text: /failed/ }))?.text).toBe(
     '2 failed  app #3  app #4   2 running  app #1  app #2   1 ready',
   )
+  await ui.unmount()
+})
+
+test('a failure older than 24 hours fades out, a fresh one stays', async ($, on) => {
+  const clock = engine(on, { rollups: [['FAILURE@30', 'FAILURE@2', 'SUCCESS']] })
+  await $.session.start(START)
+  await clock.settle()
+
+  const ui = await $.ui.mount({ ...BAND, surface: 'terminal' })
+  expect((await ui.find({ type: 'Text', text: /failed/ }))?.text).toBe('1 failed  app #2   1 ready')
   await ui.unmount()
 })
 

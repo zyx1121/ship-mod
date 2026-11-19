@@ -56,6 +56,7 @@ Start a new session. The mod reads the GitHub token from `gh auth token`, so sig
 | Setting | Default | Does |
 |--------|---------|------|
 | `days` | `2` | pull requests and failed deploys older than this are left out |
+| `failedHours` | `24` | a pull request whose last commit failed this long ago fades out of the panel |
 | `pollSeconds` | `30` | seconds between pulls, 10 at least |
 | `golemUrl` | `https://golem.zyx.tw` | where golem runs |
 | `keychainService` | `kilo/golem-mcp` | the keychain item that holds the golem token |
