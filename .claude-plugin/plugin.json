@@ -15,6 +15,13 @@
       "required": false,
       "default": 2
     },
+    "failedHours": {
+      "type": "number",
+      "title": "Failed fades after",
+      "description": "Hours after which a failed pull request leaves the panel. 24 by default.",
+      "required": false,
+      "default": 24
+    },
     "pollSeconds": {
       "type": "number",
       "title": "Poll interval",

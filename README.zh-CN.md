@@ -58,6 +58,7 @@ export CLAUDE_CODE_ENABLE_FUNCTION_HOOKS=1
 | 设置 | 默认 | 作用 |
 |--------|---------|------|
 | `days` | `2` | 超过这个天数的 PR 与失败部署不显示 |
+| `failedHours` | `24` | 最后一个 commit 失败超过这个小时数的 PR，从面板淡出 |
 | `pollSeconds` | `30` | 每次拉取间隔秒数，最少 10 |
 | `golemUrl` | `https://golem.zyx.tw` | golem 的地址 |
 | `keychainService` | `kilo/golem-mcp` | 存 golem token 的 keychain 条目 |
