@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.3.1](https://github.com/zyx1121/ship-mod/compare/v0.3.0...v0.3.1) (2026-11-20)
+
+
+### Bug Fixes
+
+* **notices:** first pull asks golem only for the last days ([#12](https://github.com/zyx1121/ship-mod/issues/12)) ([53646cf](https://github.com/zyx1121/ship-mod/commit/53646cfd5801a9fb17264c1fdbad5f56f09e8059))
+
 ## [0.3.0](https://github.com/zyx1121/ship-mod/compare/v0.2.0...v0.3.0) (2026-11-19)
 
 

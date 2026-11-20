@@ -1,6 +1,6 @@
 {
   "name": "ship-mod",
-  "version": "0.3.0",
+  "version": "0.3.1",
   "description": "Pull requests and deploys in Claude Code: a line above the prompt while CI runs, a check fails or a deploy is under way, a toast when one ends, and /ship for the list.",
   "author": {
     "name": "zyx1121",
