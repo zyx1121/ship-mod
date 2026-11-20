@@ -7,7 +7,7 @@ const BAND = {
 } as const
 
 type On = Parameters<typeof mock.clock>[0]
-type World = { rollups: (string | null)[][]; notices?: unknown[][]; isGithubUp?: boolean; isGithubHung?: boolean; toasts?: string[] }
+type World = { rollups: (string | null)[][]; notices?: unknown[][]; isGithubUp?: boolean; isGithubHung?: boolean; toasts?: string[]; noticeUrls?: string[] }
 
 const HOUR_MS = 60 * 60 * 1000
 
@@ -43,6 +43,7 @@ function engine(on: On, world: World) {
   on('http.fetch', (_, e) => {
     const answer = (body: unknown, ok = true) => ({ value: { status: ok ? 200 : 503, ok, headers: {}, text: JSON.stringify(body) } })
     if (e.url.includes('/notices')) {
+      world.noticeUrls?.push(e.url)
       const sets = world.notices ?? [[]]
       const notices = sets[Math.min(pulls++, sets.length - 1)] ?? []
       return answer({ notices, cursor: 0 })
@@ -197,4 +198,15 @@ test('/ship during the first pull shares it and replays no old deploy', async ($
   await clock.settle()
   await clock.advance(30_000)
   expect(toasts).toEqual([])
+})
+
+test('the first notice pull asks only for the last days, later pulls use the cursor', async ($, on) => {
+  const noticeUrls: string[] = []
+  const clock = engine(on, { rollups: [[]], notices: [[notice(1, 'deploy.started')], []], noticeUrls })
+  await $.session.start(START)
+  await clock.settle()
+  await clock.advance(30_000)
+  expect(noticeUrls[0]).toMatch(/[?&]since=\d{4}-\d\d-\d\dT/)
+  expect(noticeUrls[1]).toContain('after=1')
+  expect(noticeUrls[1]).not.toContain('since=')
 })

@@ -100,9 +100,11 @@ async function notices($: EngineInterface, conf: Conf): Promise<Notice[] | null>
   if (link.golem === null) return null
   const got: Notice[] = []
   let after = link.cursor ?? 0
+  // The first pull asks only for the last `days` days, not the whole history.
+  const since = link.cursor === null ? `&since=${encodeURIComponent(new Date(Date.now() - conf.days * DAY_MS).toISOString())}` : ''
   // Every page, so the first pull ends at the newest notice and replays none of them later.
   for (;;) {
-    const res = await $.http.fetch(`${conf.golem.replace(/\/$/, '')}/notices?after=${after}&limit=${PAGE}`, {
+    const res = await $.http.fetch(`${conf.golem.replace(/\/$/, '')}/notices?after=${after}&limit=${PAGE}${since}`, {
       headers: { authorization: `Bearer ${link.golem}` },
     })
     if (!res.ok) throw new Error('golem refused the pull')
